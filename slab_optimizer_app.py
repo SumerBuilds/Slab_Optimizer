@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import math
 import io
+import copy
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Cutting Layout Optimizer")
@@ -70,55 +71,64 @@ if df is not None and not df.empty:
 
     parts.sort(key=lambda x: x['width'] * x['height'], reverse=True)
 
-    def can_fit(part, space):
-        w, h = part['width'] + gap, part['height'] + gap
-        sw, sh = space['width'], space['height']
-        if w <= sw and h <= sh:
-            return w, h
-        elif h <= sw and w <= sh:
-            return h, w
-        return None
+    def guillotine_pack(parts, slab_w, slab_h, gap):
+        def fit(part, space):
+            pw, ph = part['width'], part['height']
+            if pw + gap <= space['width'] and ph + gap <= space['height']:
+                return pw, ph
+            elif ph + gap <= space['width'] and pw + gap <= space['height']:
+                return ph, pw
+            return None
 
-    def place_in_spaces(part, slab):
-        for i, space in enumerate(slab['spaces']):
-            fit = can_fit(part, space)
-            if fit:
-                pw, ph = fit
-                px, py = space['x'], space['y']
-                slab['parts'].append({**part, 'x': px, 'y': py, 'width': pw, 'height': ph})
-                # Subdivide space
-                right = {
-                    'x': px + pw + gap, 'y': py,
-                    'width': space['width'] - pw - gap,
-                    'height': ph
-                }
-                top = {
-                    'x': px, 'y': py + ph + gap,
-                    'width': space['width'],
-                    'height': space['height'] - ph - gap
-                }
-                del slab['spaces'][i]
-                if right['width'] > 0 and right['height'] > 0:
-                    slab['spaces'].append(right)
-                if top['width'] > 0 and top['height'] > 0:
-                    slab['spaces'].append(top)
-                return True
-        return False
-
-    slabs = []
-    for part in parts:
-        placed = False
-        for slab in slabs:
-            if place_in_spaces(part, slab):
-                placed = True
-                break
-        if not placed:
-            new_slab = {
-                'parts': [],
-                'spaces': [{'x': 0, 'y': 0, 'width': slab_length_in, 'height': slab_width_in}]
+        def split_space(space, pw, ph):
+            right = {
+                'x': space['x'] + pw + gap,
+                'y': space['y'],
+                'width': space['width'] - pw - gap,
+                'height': ph
             }
-            place_in_spaces(part, new_slab)
-            slabs.append(new_slab)
+            top = {
+                'x': space['x'],
+                'y': space['y'] + ph + gap,
+                'width': space['width'],
+                'height': space['height'] - ph - gap
+            }
+            return [s for s in [right, top] if s['width'] > 0 and s['height'] > 0]
+
+        slabs = []
+        for part in parts:
+            placed = False
+            for slab in slabs:
+                for i, space in enumerate(slab['spaces']):
+                    fit_dims = fit(part, space)
+                    if fit_dims:
+                        pw, ph = fit_dims
+                        part_placed = copy.deepcopy(part)
+                        part_placed.update({'x': space['x'], 'y': space['y'], 'width': pw, 'height': ph})
+                        slab['parts'].append(part_placed)
+                        new_spaces = split_space(space, pw, ph)
+                        slab['spaces'].pop(i)
+                        slab['spaces'].extend(new_spaces)
+                        placed = True
+                        break
+                if placed:
+                    break
+            if not placed:
+                new_slab = {
+                    'parts': [],
+                    'spaces': [{'x': 0, 'y': 0, 'width': slab_w, 'height': slab_h}]
+                }
+                fit_dims = fit(part, new_slab['spaces'][0])
+                if fit_dims:
+                    pw, ph = fit_dims
+                    part_placed = copy.deepcopy(part)
+                    part_placed.update({'x': 0, 'y': 0, 'width': pw, 'height': ph})
+                    new_slab['parts'].append(part_placed)
+                    new_slab['spaces'] = split_space(new_slab['spaces'][0], pw, ph)
+                slabs.append(new_slab)
+        return slabs
+
+    slabs = guillotine_pack(parts, slab_length_in, slab_width_in, gap)
 
     st.success(f"You will need {len(slabs)} slabs")
 
