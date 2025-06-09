@@ -6,7 +6,7 @@ import math
 import io
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
-st.title("🪚 Quartz Slab Layout Optimizer")
+st.title("🪚 Quartz Slab Cutting Layout Optimizer")
 
 # User-defined slab dimensions and cutting gap
 st.subheader("Step 1: Define Slab Dimensions and Cutting Gap")
@@ -99,7 +99,7 @@ if df is not None and not df.empty:
         if not placed:
             slabs.append({'parts': [{**part, 'x': 0, 'y': 0}]})
 
-    st.success(f"Optimized into {len(slabs)} slabs.")
+    st.success(f"You will need {len(slabs)} slabs")
 
     # Draw all slabs to PDF
     pdf_buffer = io.BytesIO()
@@ -114,7 +114,7 @@ if df is not None and not df.empty:
             ax.set_title(f"Slab {i + 1}")
             ax.set_aspect('equal')
             for part in slab['parts']:
-                rect = plt.Rectangle((part['x'], part['y']), part['width'], part['height'], fill=None, edgecolor='blue', linewidth=1.5)
+                rect = plt.Rectangle((part['x'], part['y']), part['width'], part['height'], facecolor='skyblue', edgecolor='blue', linewidth=1.5)
                 ax.add_patch(rect)
                 ax.text(part['x'] + part['width']/2, part['y'] + part['height']/2, part['label'], fontsize=10, ha='center', va='center')
             ax.invert_yaxis()
