@@ -57,78 +57,92 @@ with tab2:
         df = df.rename(columns=lambda x: x.strip())
 
 if df is not None and not df.empty:
-    # Convert ft to inches and replicate parts by quantity
     parts = []
     for _, row in df.iterrows():
         for _ in range(int(row['Quantity'])):
-            part = {
+            length_in = float(row['Length (ft)']) * 12
+            width_in = float(row['Width (ft)']) * 12
+            parts.append({
                 'label': row['Label'],
-                'width': float(row['Width (ft)']) * 12 + gap,
-                'height': float(row['Length (ft)']) * 12 + gap
-            }
-            parts.append(part)
+                'width': width_in,
+                'height': length_in
+            })
 
-    # Sort parts by max dimension to help with packing
-    parts.sort(key=lambda x: max(x['width'], x['height']), reverse=True)
+    parts.sort(key=lambda x: x['width'] * x['height'], reverse=True)
 
-    # Allow rotation and apply improved greedy bin-packing
+    def can_fit(part, space):
+        w, h = part['width'] + gap, part['height'] + gap
+        sw, sh = space['width'], space['height']
+        if w <= sw and h <= sh:
+            return w, h
+        elif h <= sw and w <= sh:
+            return h, w
+        return None
+
+    def place_in_spaces(part, slab):
+        for i, space in enumerate(slab['spaces']):
+            fit = can_fit(part, space)
+            if fit:
+                pw, ph = fit
+                px, py = space['x'], space['y']
+                slab['parts'].append({**part, 'x': px, 'y': py, 'width': pw, 'height': ph})
+                # Subdivide space
+                right = {
+                    'x': px + pw + gap, 'y': py,
+                    'width': space['width'] - pw - gap,
+                    'height': ph
+                }
+                top = {
+                    'x': px, 'y': py + ph + gap,
+                    'width': space['width'],
+                    'height': space['height'] - ph - gap
+                }
+                del slab['spaces'][i]
+                if right['width'] > 0 and right['height'] > 0:
+                    slab['spaces'].append(right)
+                if top['width'] > 0 and top['height'] > 0:
+                    slab['spaces'].append(top)
+                return True
+        return False
+
     slabs = []
     for part in parts:
         placed = False
         for slab in slabs:
-            for y in range(0, int(slab_length_in), int(gap) + 1):
-                for x in range(0, int(slab_width_in), int(gap) + 1):
-                    for rotate in [False, True]:
-                        pw = part['width'] if not rotate else part['height']
-                        ph = part['height'] if not rotate else part['width']
-                        if x + pw > slab_width_in or y + ph > slab_length_in:
-                            continue
-                        fits = True
-                        for other in slab['parts']:
-                            ox, oy, ow, oh = other['x'], other['y'], other['width'], other['height']
-                            if not (x + pw <= ox or x >= ox + ow or y + ph <= oy or y >= oy + oh):
-                                fits = False
-                                break
-                        if fits:
-                            slab['parts'].append({**part, 'width': pw, 'height': ph, 'x': x, 'y': y})
-                            placed = True
-                            break
-                    if placed:
-                        break
-                if placed:
-                    break
-            if placed:
+            if place_in_spaces(part, slab):
+                placed = True
                 break
         if not placed:
-            slabs.append({'parts': [{**part, 'x': 0, 'y': 0}]})
+            new_slab = {
+                'parts': [],
+                'spaces': [{'x': 0, 'y': 0, 'width': slab_length_in, 'height': slab_width_in}]
+            }
+            place_in_spaces(part, new_slab)
+            slabs.append(new_slab)
 
     st.success(f"You will need {len(slabs)} slabs")
 
-    # Draw all slabs to PDF
+    # Draw slabs to PDF
     pdf_buffer = io.BytesIO()
     with PdfPages(pdf_buffer) as pdf:
-        for i in range(0, len(slabs), 6):
-            fig, axs = plt.subplots(3, 2, figsize=(36, 24))
-            axs = axs.flatten()
-            for j in range(6):
-                idx = i + j
-                if idx >= len(slabs):
-                    axs[j].axis('off')
-                    continue
-                slab = slabs[idx]
-                ax = axs[j]
-                ax.set_xlim(0, slab_width_in)
-                ax.set_ylim(0, slab_length_in)
-                ax.set_title(f"Slab {idx + 1}")
-                ax.set_aspect('equal')
-                for part in slab['parts']:
-                    rect = plt.Rectangle((part['x'], part['y']), part['width'], part['height'], facecolor='skyblue', edgecolor='blue', linewidth=1.5)
-                    ax.add_patch(rect)
-                    ax.text(part['x'] + part['width']/2, part['y'] + part['height']/2, part['label'], fontsize=10, ha='center', va='center')
-                ax.invert_yaxis()
-            plt.tight_layout()
-            pdf.savefig(fig)
-            plt.close()
+        for i, slab in enumerate(slabs):
+            if i % 6 == 0:
+                fig, axs = plt.subplots(3, 2, figsize=(36, 24))
+                axs = axs.flatten()
+            ax = axs[i % 6]
+            ax.set_xlim(0, slab_length_in)
+            ax.set_ylim(0, slab_width_in)
+            ax.set_title(f"Slab {i + 1}")
+            ax.set_aspect('equal')
+            for part in slab['parts']:
+                rect = plt.Rectangle((part['x'], part['y']), part['width'], part['height'], facecolor='skyblue', edgecolor='blue', linewidth=1.5)
+                ax.add_patch(rect)
+                ax.text(part['x'] + part['width']/2, part['y'] + part['height']/2, part['label'], fontsize=10, ha='center', va='center')
+            ax.invert_yaxis()
+            if (i % 6 == 5) or (i == len(slabs) - 1):
+                plt.tight_layout()
+                pdf.savefig(fig)
+                plt.close()
 
     st.download_button(
         label="📄 Download Slab Layout PDF",
