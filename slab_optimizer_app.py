@@ -115,7 +115,7 @@ def pack_slabs_with_gap(pieces, slab_size):
 
 bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in))
 
-    bins_dict = {}
+        bins_dict = {}
     for rect in packer.rect_list():
         x, y, w, h, rid, bid = rect
         if bid not in bins_dict:
