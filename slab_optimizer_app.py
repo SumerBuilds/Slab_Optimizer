@@ -14,28 +14,49 @@ slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, v
 slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0, step=1.0)
 gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, max_value=5.0, value=0.5, step=0.1)
 
-# Upload CSV file
-st.subheader("Step 2: Upload Countertop Info (CSV File)")
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+# Upload CSV file or enter manually
+st.subheader("Step 2: Provide Countertop Info")
+tab1, tab2 = st.tabs(["📁 Upload CSV File", "📝 Enter Manually"])
 
-# Sample input format
-st.markdown("""
-##### 📌 Sample CSV Format
-```csv
-Label,Length (ft),Width (ft),Quantity
-island top,7,3.5,8
-island side,3,3.5,16
-kitchen 1,2.75,2,8
-kitchen 2,5.5,2,8
-bath 1,9.1,1.75,8
-bath 2,2,1.75,8
-```
-""")
+df = None
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    df = df.rename(columns=lambda x: x.strip())
+with tab1:
+    uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
+    # Sample input format
+    st.markdown("""
+    ##### 📌 Sample CSV Format
+    ```csv
+    Label,Length (ft),Width (ft),Quantity
+    island top,7,3.5,8
+    island side,3,3.5,16
+    kitchen 1,2.75,2,8
+    kitchen 2,5.5,2,8
+    bath 1,9.1,1.75,8
+    bath 2,2,1.75,8
+    ```
+    """)
+
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        df = df.rename(columns=lambda x: x.strip())
+
+with tab2:
+    manual_data = []
+    with st.form("manual_input_form"):
+        for i in range(8):
+            col1, col2, col3, col4 = st.columns(4)
+            label = col1.text_input(f"Label {i+1}", key=f"label_{i}")
+            length = col2.number_input(f"Length (ft) {i+1}", min_value=0.0, step=0.1, key=f"len_{i}")
+            width = col3.number_input(f"Width (ft) {i+1}", min_value=0.0, step=0.1, key=f"wid_{i}")
+            quantity = col4.number_input(f"Qty {i+1}", min_value=0, step=1, key=f"qty_{i}")
+            if label and length > 0 and width > 0 and quantity > 0:
+                manual_data.append({"Label": label, "Length (ft)": length, "Width (ft)": width, "Quantity": quantity})
+        submitted = st.form_submit_button("Submit Manual Entries")
+        if submitted:
+            df = pd.DataFrame(manual_data)
+
+if df is not None and not df.empty:
     # Convert ft to inches and replicate parts by quantity
     parts = []
     for _, row in df.iterrows():
