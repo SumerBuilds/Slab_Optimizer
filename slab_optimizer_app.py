@@ -69,12 +69,12 @@ if df is not None:
             label_lookup[rect_id] = label
             rect_id += 1
 
-    from rectpack import MaxRectsBssf
-    packer = newPacker(bin_algo=MaxRectsBssf, rotation=True)
+    from rectpack import newPacker, PackingMode, MaxRectsBssf
+    packer = newPacker(mode=PackingMode.Offline, pack_algo=MaxRectsBssf, rotation=True)
     for w, h, rid, label in pieces:
         packer.add_rect(w, h, rid)
 
-    packer.add_bin(slab_length_in, slab_width_in, float('inf'))
+    packer.add_bin(slab_length_in, slab_width_in)
 
     packer.pack()
 
