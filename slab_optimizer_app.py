@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import io
-from rectpack import newPacker
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Cutting Layout Optimizer")
@@ -12,6 +11,48 @@ st.title("🪚 Quartz Slab Cutting Layout Optimizer")
 slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0)
 slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0)
 gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, value=0.5, step=0.1)
+
+# Packing logic
+
+def can_place_with_gap(piece, placed, slab_size, gap):
+    px, py = map(int, piece)
+    sx, sy = map(int, slab_size)
+    for x in range(0, sx - px + 1):
+        for y in range(0, sy - py + 1):
+            overlap = False
+            for (ox, oy, ow, oh, _) in placed:
+                if not (x + px + gap <= ox or x >= ox + ow + gap or y + py + gap <= oy or y >= oy + oh + gap):
+                    overlap = True
+                    break
+            if not overlap:
+                return (x, y)
+    return None
+
+def pack_slabs_with_gap(pieces, slab_size, gap):
+    slabs = []
+    for piece in pieces:
+        placed_successfully = False
+        for slab in slabs:
+            position = can_place_with_gap(piece[:2], slab, slab_size, gap)
+            if position:
+                x, y = position
+                slab.append((x, y, piece[0], piece[1], piece[2]))
+                placed_successfully = True
+                break
+        if not placed_successfully:
+            # Try rotating the piece if not placed
+            rotated = (piece[1], piece[0], piece[2])
+            for slab in slabs:
+                position = can_place_with_gap(rotated[:2], slab, slab_size, gap)
+                if position:
+                    x, y = position
+                    slab.append((x, y, rotated[0], rotated[1], rotated[2]))
+                    placed_successfully = True
+                    break
+        if not placed_successfully:
+            # Start a new slab
+            slabs.append([(0, 0, piece[0], piece[1], piece[2])])
+    return slabs
 
 # Load data
 tab1, tab2 = st.tabs(["📝 Enter Manually", "📁 Upload CSV File"])
@@ -65,67 +106,11 @@ if df is not None:
         qty = int(row['Quantity'])
         total_countertop_area += l_in * w_in * qty
         for _ in range(qty):
-            pieces.append((w_in, l_in, rect_id, label))
+            pieces.append((w_in, l_in, rect_id))
             label_lookup[rect_id] = label
             rect_id += 1
 
-    
-
-# Custom geometry-based slab packing
-    MIN_GAP = gap  # inches (user-defined)
-
-def can_place_with_gap(piece, placed, slab_size):
-    px, py = piece
-    sx, sy = slab_size
-    for x in range(0, int(sx - px + 1)):
-        for y in range(0, int(sy - py + 1)):
-            overlap = False
-            for (ox, oy, ow, oh) in placed:
-                if not (x + px + MIN_GAP <= ox or x >= ox + ow + MIN_GAP or y + py + MIN_GAP <= oy or y >= oy + oh + MIN_GAP):
-                    overlap = True
-                    break
-            if not overlap:
-                return (x, y)
-    return None
-
-def pack_slabs_with_gap(pieces, slab_size):
-    slabs = []
-    for piece in pieces:
-        w, h, rid, label = piece
-        placed_successfully = False
-        for slab in slabs:
-            position = can_place_with_gap((w, h), slab, slab_size)
-            if position:
-                x, y = position
-                slab.append((x, y, w, h, rid))
-                placed_successfully = True
-                break
-        if not placed_successfully:
-            # Try rotating the piece
-            rotated = (h, w)
-            for slab in slabs:
-                position = can_place_with_gap(rotated, slab, slab_size)
-                if position:
-                    x, y = position
-                    slab.append((x, y, rotated[0], rotated[1], rid))
-                    placed_successfully = True
-                    break
-        if not placed_successfully:
-            # New slab
-            slabs.append([(0, 0, w, h, rid)])
-    return slabs
-
-    bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in))
-
-    bins_dict = {}
-    for slab_index, slab_parts in enumerate(bins):
-        for part in slab_parts:
-            x, y, w, h, rid = part
-            if slab_index not in bins_dict:
-                bins_dict[slab_index] = []
-            bins_dict[slab_index].append((x, y, w, h, rid))
-
-    bins = [bins_dict[k] for k in sorted(bins_dict.keys())]
+    bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in), gap)
 
     total_slab_area = len(bins) * slab_length_in * slab_width_in
     waste_area = total_slab_area - total_countertop_area
@@ -136,6 +121,7 @@ def pack_slabs_with_gap(pieces, slab_size):
     st.info(f"Waste area: {waste_area / 144:.2f} sq ft")
 
     pdf_bytes = io.BytesIO()
+    from matplotlib.backends.backend_pdf import PdfPages
     with PdfPages(pdf_bytes) as pdf:
         for idx, slab_parts in enumerate(bins):
             fig, ax = plt.subplots(figsize=(36, 24))
