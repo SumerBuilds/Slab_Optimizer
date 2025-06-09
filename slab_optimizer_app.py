@@ -118,7 +118,7 @@ if df is not None and not df.empty:
                 ax.add_patch(rect)
                 ax.text(part['x'] + part['width']/2, part['y'] + part['height']/2, part['label'], fontsize=10, ha='center', va='center')
             ax.invert_yaxis()
-            if (i + 1) % 6 == 0 or (i + 1) == len(slabs):
+            if (i % 6 == 5) or (i == len(slabs) - 1):
                 plt.tight_layout()
                 pdf.savefig(fig)
                 plt.close()
