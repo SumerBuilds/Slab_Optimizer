@@ -69,44 +69,7 @@ if df is not None:
             label_lookup[rect_id] = label
             rect_id += 1
 
-    bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in))
-
-    bins_dict = {}
-    for slab_index, slab_parts in enumerate(bins):
-        for part in slab_parts:
-            x, y, w, h, rid = part
-            if slab_index not in bins_dict:
-                bins_dict[slab_index] = []
-            bins_dict[slab_index].append((x, y, w, h, rid))
-
-    bins = [bins_dict[k] for k in sorted(bins_dict.keys())]
-
-    total_slab_area = len(bins) * slab_length_in * slab_width_in
-    waste_area = total_slab_area - total_countertop_area
-
-    st.success(f"You will need {len(bins)} slabs")
-    st.info(f"Total countertop area: {total_countertop_area / 144:.2f} sq ft")
-    st.info(f"Total slab area used: {total_slab_area / 144:.2f} sq ft")
-    st.info(f"Waste area: {waste_area / 144:.2f} sq ft")
-
-    pdf_bytes = io.BytesIO()
-    with PdfPages(pdf_bytes) as pdf:
-        for idx, slab_parts in enumerate(bins):
-            fig, ax = plt.subplots(figsize=(36, 24))
-            ax.set_xlim(0, slab_length_in)
-            ax.set_ylim(0, slab_width_in)
-            ax.set_aspect('equal')
-            ax.set_title(f"Slab {idx + 1}")
-            for x, y, w, h, rid in slab_parts:
-                label = label_lookup.get(rid, "")
-                rect = plt.Rectangle((x, y), w, h, facecolor='skyblue', edgecolor='blue')
-                ax.add_patch(rect)
-                ax.text(x + w/2, y + h/2, label, ha='center', va='center', fontsize=10)
-            ax.invert_yaxis()
-            pdf.savefig(fig)
-            plt.close()
-
-    st.download_button("📄 Download Slab Layout PDF", data=pdf_bytes.getvalue(), file_name="slab_layout_optimized.pdf", mime="application/pdf")
+    , file_name="slab_layout_optimized.pdf", mime="application/pdf")
 
 # Custom geometry-based slab packing
     MIN_GAP = gap  # inches (user-defined)
