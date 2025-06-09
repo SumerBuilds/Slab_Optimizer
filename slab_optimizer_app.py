@@ -8,12 +8,29 @@ import io
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Layout Optimizer")
 
-uploaded_file = st.file_uploader("Upload CSV file with part data", type=["csv"])
+# User-defined slab dimensions and cutting gap
+st.subheader("Step 1: Define Slab Dimensions and Cutting Gap")
+slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0, step=1.0)
+slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0, step=1.0)
+gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, max_value=5.0, value=0.5, step=0.1)
 
-# User-defined inputs
-slab_length_in = st.number_input("Slab Length (inches)", min_value=10.0, value=127.0, step=1.0)
-slab_width_in = st.number_input("Slab Width (inches)", min_value=10.0, value=64.0, step=1.0)
-gap = st.number_input("Cutting gap between parts (in inches)", min_value=0.0, max_value=5.0, value=0.5, step=0.1)
+# Upload CSV file
+st.subheader("Step 2: Upload Countertop Info (CSV File)")
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+
+# Sample input format
+st.markdown("""
+##### 📌 Sample CSV Format
+```csv
+Label,Length (ft),Width (ft),Quantity
+island top,7,3.5,8
+island side,3,3.5,16
+kitchen 1,2.75,2,8
+kitchen 2,5.5,2,8
+bath 1,9.1,1.75,8
+bath 2,2,1.75,8
+```
+""")
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -91,12 +108,3 @@ if uploaded_file:
         file_name="slab_layout.pdf",
         mime="application/pdf"
     )
-
-    st.write("\n📌 Sample Input Format:")
-    st.code("""Label,Length (ft),Width (ft),Quantity
-island top,7,3.5,8
-island side,3,3.5,16
-kitchen 1,2.75,2,8
-kitchen 2,5.5,2,8
-bath 1,9.1,1.75,8
-bath 2,2,1.75,8""")
