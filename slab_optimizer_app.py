@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import io
-from rectpack import newPacker
+from rectpack import newPacker, PackingMode, MaxRectsBssf
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Cutting Layout Optimizer")
@@ -63,7 +63,6 @@ bath 2,2,1.75,8
 
 if df is not None:
     pieces = []
-    labels = []
     label_lookup = {}
     total_countertop_area = 0
 
@@ -76,20 +75,17 @@ if df is not None:
         total_countertop_area += area
         for _ in range(qty):
             rect_id = len(pieces)
-            pieces.append((width + gap, length + gap))
+            pieces.append((width, length, rect_id))
             label_lookup[rect_id] = label
 
-    # Start packing
-    packer = newPacker(rotation=True)
-    for i, (w, h) in enumerate(pieces):
-        packer.add_rect(w, h, i)
-    bin_count = max(1, len(pieces) // 5)
-    for _ in range(bin_count):
-        packer.add_bin(slab_width_in, slab_length_in)
+    # Packing setup with MaxRects and smarter mode
+    packer = newPacker(mode=PackingMode.Offline, bin_algo=MaxRectsBssf, rotation=True)
+    for w, h, i in pieces:
+        packer.add_rect(w + gap, h + gap, i)
+    packer.add_bin(slab_width_in, slab_length_in, float("inf"))  # dynamically allocate bins
 
     packer.pack()
 
-    # Reconstruct bins safely
     bins_dict = {}
     for rect in packer.rect_list():
         x, y, w, h, rid, bid = rect
