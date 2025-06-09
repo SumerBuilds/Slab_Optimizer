@@ -69,14 +69,51 @@ if df is not None:
             label_lookup[rect_id] = label
             rect_id += 1
 
-    from rectpack import newPacker, PackingMode, MaxRectsBssf
-    packer = newPacker(mode=PackingMode.Offline, pack_algo=MaxRectsBssf, rotation=True)
-    for w, h, rid, label in pieces:
-        packer.add_rect(w, h, rid)
+    # Custom geometry-based slab packing
+MIN_GAP = gap  # inches (user-defined)
 
-    packer.add_bin(slab_length_in, slab_width_in)
+def can_place_with_gap(piece, placed, slab_size):
+    px, py = piece
+    sx, sy = slab_size
+    for x in range(0, int(sx - px + 1)):
+        for y in range(0, int(sy - py + 1)):
+            overlap = False
+            for (ox, oy, ow, oh) in placed:
+                if not (x + px + MIN_GAP <= ox or x >= ox + ow + MIN_GAP or y + py + MIN_GAP <= oy or y >= oy + oh + MIN_GAP):
+                    overlap = True
+                    break
+            if not overlap:
+                return (x, y)
+    return None
 
-    packer.pack()
+def pack_slabs_with_gap(pieces, slab_size):
+    slabs = []
+    for piece in pieces:
+        w, h, rid, label = piece
+        placed_successfully = False
+        for slab in slabs:
+            position = can_place_with_gap((w, h), slab, slab_size)
+            if position:
+                x, y = position
+                slab.append((x, y, w, h, rid))
+                placed_successfully = True
+                break
+        if not placed_successfully:
+            # Try rotating the piece
+            rotated = (h, w)
+            for slab in slabs:
+                position = can_place_with_gap(rotated, slab, slab_size)
+                if position:
+                    x, y = position
+                    slab.append((x, y, rotated[0], rotated[1], rid))
+                    placed_successfully = True
+                    break
+        if not placed_successfully:
+            # New slab
+            slabs.append([(0, 0, w, h, rid)])
+    return slabs
+
+bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in))
 
     bins_dict = {}
     for rect in packer.rect_list():
