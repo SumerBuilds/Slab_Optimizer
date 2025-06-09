@@ -70,7 +70,7 @@ if df is not None:
             rect_id += 1
 
     # Custom geometry-based slab packing
-MIN_GAP = gap  # inches (user-defined)
+    MIN_GAP = gap  # inches (user-defined)
 
 def can_place_with_gap(piece, placed, slab_size):
     px, py = piece
