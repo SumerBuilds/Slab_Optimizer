@@ -109,8 +109,8 @@ if df is not None and not df.empty:
                 fig, axs = plt.subplots(3, 2, figsize=(36, 24))
                 axs = axs.flatten()
             ax = axs[i % 6]
-            ax.set_xlim(0, slab_width_in)
-            ax.set_ylim(0, slab_length_in)
+            ax.set_xlim(0, slab_length_in)
+            ax.set_ylim(0, slab_width_in)
             ax.set_title(f"Slab {i + 1}")
             ax.set_aspect('equal')
             for part in slab['parts']:
