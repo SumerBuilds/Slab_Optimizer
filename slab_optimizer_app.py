@@ -2,43 +2,39 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-import math
 import io
+from rectpack import newPacker
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
-st.title("🪚 Quartz Slab Cutting Layout Optimizer")
+st.title("🪚 Quartz Slab Cutting Layout Optimizer (Powered by MaxRects)")
 
-# User-defined slab dimensions and cutting gap
-st.subheader("Step 1: Define Slab Dimensions and Cutting Gap")
-slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0, step=1.0)
-slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0, step=1.0)
-gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, max_value=5.0, value=0.5, step=0.1)
-
-# Upload CSV file or enter manually
-st.subheader("Step 2: Provide Countertop Info")
+# Input slab dimensions and kerf
 tab1, tab2 = st.tabs(["📝 Enter Manually", "📁 Upload CSV File"])
 
-df = None
+slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0)
+slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0)
+gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, value=0.5, step=0.1)
 
+# Load data
+df = None
 with tab1:
     manual_data = []
-    with st.form("manual_input_form"):
+    with st.form("manual_input"):
         for i in range(8):
-            col1, col2, col3, col4 = st.columns(4)
-            label = col1.text_input(f"Label {i+1}", key=f"label_{i}")
-            length = col2.number_input(f"Length (ft) {i+1}", min_value=0.0, step=0.1, key=f"len_{i}")
-            width = col3.number_input(f"Width (ft) {i+1}", min_value=0.0, step=0.1, key=f"wid_{i}")
-            quantity = col4.number_input(f"Qty {i+1}", min_value=0, step=1, key=f"qty_{i}")
-            if label and length > 0 and width > 0 and quantity > 0:
-                manual_data.append({"Label": label, "Length (ft)": length, "Width (ft)": width, "Quantity": quantity})
-        submitted = st.form_submit_button("Submit Manual Entries")
+            cols = st.columns(4)
+            label = cols[0].text_input(f"Label {i+1}", key=f"label_{i}")
+            length = cols[1].number_input(f"Length (ft) {i+1}", min_value=0.0, step=0.1, key=f"len_{i}")
+            width = cols[2].number_input(f"Width (ft) {i+1}", min_value=0.0, step=0.1, key=f"wid_{i}")
+            qty = cols[3].number_input(f"Qty {i+1}", min_value=0, step=1, key=f"qty_{i}")
+            if label and length > 0 and width > 0 and qty > 0:
+                manual_data.append({"Label": label, "Length (ft)": length, "Width (ft)": width, "Quantity": qty})
+        submitted = st.form_submit_button("Submit")
         if submitted:
             df = pd.DataFrame(manual_data)
 
 with tab2:
-    uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
-    st.markdown("""
-    ##### 📌 Sample CSV Format
+    uploaded = st.file_uploader("Upload CSV", type=["csv"])
+    st.markdown("""### Example Format:
     ```csv
     Label,Length (ft),Width (ft),Quantity
     island top,7,3.5,8
@@ -49,118 +45,51 @@ with tab2:
     bath 2,2,1.75,8
     ```
     """)
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        df = df.rename(columns=lambda x: x.strip())
+    if uploaded:
+        df = pd.read_csv(uploaded)
 
-if df is not None and not df.empty:
-    # Convert ft to inches and replicate parts by quantity
-    parts = []
+if df is not None:
+    pieces = []
+    labels = []
     for _, row in df.iterrows():
-        for _ in range(int(row['Quantity'])):
-            parts.append({
-                'label': row['Label'],
-                'width': float(row['Width (ft)']) * 12,
-                'height': float(row['Length (ft)']) * 12
-            })
+        label = row['Label']
+        length = float(row['Length (ft)']) * 12 + gap
+        width = float(row['Width (ft)']) * 12 + gap
+        qty = int(row['Quantity'])
+        for _ in range(qty):
+            pieces.append((width, length))  # rectpack uses (width, height)
+            labels.append(label)
 
-    parts.sort(key=lambda p: 2 * (p['width'] + p['height']), reverse=True)
+    # Start packing
+    packer = newPacker(rotation=True)
+    rect_data = [(w, h, i) for i, (w, h) in enumerate(pieces)]
 
-    def fits(part, rect):
-        for rotated in [False, True]:
-            pw, ph = (part['width'], part['height']) if not rotated else (part['height'], part['width'])
-            if pw + gap <= rect['width'] and ph + gap <= rect['height']:
-                return pw, ph
-        return None
+    for r in rect_data:
+        packer.add_rect(*r)
+    for _ in range(len(pieces)):
+        packer.add_bin(slab_width_in, slab_length_in)
 
-    def pack_parts(parts, slab_width, slab_height):
-        slabs = []
+    packer.pack()
 
-        def split_rect(free_rect, part_width, part_height):
-            new_rects = []
-            right = {
-                'x': free_rect['x'] + part_width + gap,
-                'y': free_rect['y'],
-                'width': free_rect['width'] - part_width - gap,
-                'height': part_height
-            }
-            top = {
-                'x': free_rect['x'],
-                'y': free_rect['y'] + part_height + gap,
-                'width': free_rect['width'],
-                'height': free_rect['height'] - part_height - gap
-            }
-            for rect in [right, top]:
-                if rect['width'] > 1 and rect['height'] > 1:
-                    new_rects.append(rect)
-            return new_rects
+    bins = packer.bin_rects()
+    st.success(f"You will need {len(bins)} slabs")
 
-        for part in parts:
-            placed = False
-            for slab in slabs:
-                best_fit = None
-                for i, free in enumerate(slab['free_rects']):
-                    fit = fits(part, free)
-                    if fit:
-                        pw, ph = fit
-                        leftover = free['width'] * free['height'] - pw * ph
-                        if best_fit is None or leftover < best_fit['leftover']:
-                            best_fit = {
-                                'index': i,
-                                'fit': fit,
-                                'free': free,
-                                'leftover': leftover
-                            }
-                if best_fit:
-                    i = best_fit['index']
-                    free = best_fit['free']
-                    pw, ph = best_fit['fit']
-                    px, py = free['x'], free['y']
-                    slab['parts'].append({**part, 'x': px, 'y': py, 'width': pw, 'height': ph})
-                    new_rects = split_rect(free, pw, ph)
-                    slab['free_rects'].pop(i)
-                    slab['free_rects'].extend(new_rects)
-                    placed = True
-                    break
-            if not placed:
-                fit = fits(part, {'width': slab_width, 'height': slab_height})
-                if fit:
-                    pw, ph = fit
-                    new_slab = {
-                        'parts': [{**part, 'x': 0, 'y': 0, 'width': pw, 'height': ph}],
-                        'free_rects': split_rect({'x': 0, 'y': 0, 'width': slab_width, 'height': slab_height}, pw, ph)
-                    }
-                    slabs.append(new_slab)
-        return slabs
-
-    slabs = pack_parts(parts, slab_width_in, slab_length_in)
-    st.success(f"You will need {len(slabs)} slabs")
-
-    # Draw all slabs to PDF
-    pdf_buffer = io.BytesIO()
-    with PdfPages(pdf_buffer) as pdf:
-        for i, slab in enumerate(slabs):
-            if i % 6 == 0:
-                fig, axs = plt.subplots(3, 2, figsize=(36, 24))
-                axs = axs.flatten()
-            ax = axs[i % 6]
+    # Draw PDF
+    pdf_bytes = io.BytesIO()
+    with PdfPages(pdf_bytes) as pdf:
+        for idx, b in enumerate(bins):
+            fig, ax = plt.subplots(figsize=(36, 24))
             ax.set_xlim(0, slab_length_in)
             ax.set_ylim(0, slab_width_in)
-            ax.set_title(f"Slab {i + 1}")
             ax.set_aspect('equal')
-            for part in slab['parts']:
-                rect = plt.Rectangle((part['x'], part['y']), part['width'], part['height'], facecolor='skyblue', edgecolor='blue', linewidth=1.5)
+            ax.set_title(f"Slab {idx + 1}")
+            for x, y, w, h, rid in b:
+                label = labels[rid]
+                rect = plt.Rectangle((y, x), h, w, facecolor='skyblue', edgecolor='blue')
                 ax.add_patch(rect)
-                ax.text(part['x'] + part['width']/2, part['y'] + part['height']/2, part['label'], fontsize=10, ha='center', va='center')
+                ax.text(y + h/2, x + w/2, label, ha='center', va='center', fontsize=10)
             ax.invert_yaxis()
-            if (i % 6 == 5) or (i == len(slabs) - 1):
-                plt.tight_layout()
-                pdf.savefig(fig)
-                plt.close()
+            pdf.savefig(fig)
+            plt.close()
 
-    st.download_button(
-        label="📄 Download Slab Layout PDF",
-        data=pdf_buffer.getvalue(),
-        file_name="slab_layout.pdf",
-        mime="application/pdf"
-    )
+    st.download_button("📄 Download Slab Layout PDF", data=pdf_bytes.getvalue(), file_name="slab_layout_optimized.pdf", mime="application/pdf")
