@@ -37,8 +37,6 @@ with tab1:
 
 with tab2:
     uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
-
-    # Sample input format
     st.markdown("""
     ##### 📌 Sample CSV Format
     ```csv
@@ -51,7 +49,6 @@ with tab2:
     bath 2,2,1.75,8
     ```
     """)
-
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         df = df.rename(columns=lambda x: x.strip())
@@ -68,36 +65,53 @@ if df is not None and not df.empty:
             }
             parts.append(part)
 
-    # Sort parts by area (descending)
     parts.sort(key=lambda x: x['width'] * x['height'], reverse=True)
 
-    # Simple greedy placement algorithm
     slabs = []
     for part in parts:
         placed = False
         for slab in slabs:
-            for y in range(0, int(slab_length_in - part['height'] + 1), int(gap) + 1):
-                for x in range(0, int(slab_width_in - part['width'] + 1), int(gap) + 1):
-                    fits = True
-                    for other in slab['parts']:
-                        if not (
-                            x + part['width'] <= other['x'] or
-                            x >= other['x'] + other['width'] or
-                            y + part['height'] <= other['y'] or
-                            y >= other['y'] + other['height']
-                        ):
-                            fits = False
+            for rotated in [False, True]:
+                pw = part['width'] if not rotated else part['height']
+                ph = part['height'] if not rotated else part['width']
+                for y in range(0, int(slab_length_in - ph + 1), int(gap) + 1):
+                    for x in range(0, int(slab_width_in - pw + 1), int(gap) + 1):
+                        fits = True
+                        for other in slab['parts']:
+                            ox, oy = other['x'], other['y']
+                            ow, oh = other['width'], other['height']
+                            if not (
+                                x + pw <= ox or x >= ox + ow or
+                                y + ph <= oy or y >= oy + oh
+                            ):
+                                fits = False
+                                break
+                        if fits:
+                            part_to_add = {
+                                'label': part['label'],
+                                'width': pw,
+                                'height': ph,
+                                'x': x,
+                                'y': y
+                            }
+                            slab['parts'].append(part_to_add)
+                            placed = True
                             break
-                    if fits:
-                        slab['parts'].append({**part, 'x': x, 'y': y})
-                        placed = True
+                    if placed:
                         break
                 if placed:
                     break
             if placed:
                 break
         if not placed:
-            slabs.append({'parts': [{**part, 'x': 0, 'y': 0}]})
+            slabs.append({'parts': []})
+            slabs[-1]['parts'].append({
+                'label': part['label'],
+                'width': part['width'],
+                'height': part['height'],
+                'x': 0,
+                'y': 0
+            })
 
     st.success(f"You will need {len(slabs)} slabs")
 
