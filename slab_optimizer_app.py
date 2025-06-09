@@ -50,9 +50,10 @@ with tab2:
 if df is not None:
     pieces = []
     labels = []
+    label_lookup = {}
     total_countertop_area = 0
 
-    for _, row in df.iterrows():
+    for index, row in df.iterrows():
         label = row['Label']
         length = float(row['Length (ft)']) * 12
         width = float(row['Width (ft)']) * 12
@@ -60,11 +61,13 @@ if df is not None:
         area = (length * width) * qty
         total_countertop_area += area
         for _ in range(qty):
-            pieces.append((width + gap, length + gap, label))  # width, height, label
+            rect_id = len(pieces)
+            pieces.append((width + gap, length + gap))
+            label_lookup[rect_id] = label
 
     # Start packing
     packer = newPacker(rotation=True)
-    for i, (w, h, _) in enumerate(pieces):
+    for i, (w, h) in enumerate(pieces):
         packer.add_rect(w, h, i)
     bin_count = max(1, len(pieces) // 5)
     for _ in range(bin_count):
@@ -99,7 +102,7 @@ if df is not None:
             ax.set_aspect('equal')
             ax.set_title(f"Slab {idx + 1}")
             for x, y, w, h, rid in slab_parts:
-                label = pieces[rid][2]  # Retrieve label from pieces
+                label = label_lookup.get(rid, "")
                 rect = plt.Rectangle((x, y), w, h, facecolor='skyblue', edgecolor='blue')
                 ax.add_patch(rect)
                 ax.text(x + w/2, y + h/2, label, ha='center', va='center', fontsize=10)
