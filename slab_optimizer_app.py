@@ -9,13 +9,12 @@ st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Cutting Layout Optimizer (Powered by MaxRects)")
 
 # Input slab dimensions and kerf
-tab1, tab2 = st.tabs(["📝 Enter Manually", "📁 Upload CSV File"])
-
 slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0)
 slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0)
 gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, value=0.5, step=0.1)
 
 # Load data
+tab1, tab2 = st.tabs(["📝 Enter Manually", "📁 Upload CSV File"])
 df = None
 with tab1:
     manual_data = []
@@ -51,13 +50,18 @@ with tab2:
 if df is not None:
     pieces = []
     labels = []
+    total_countertop_area = 0
+
     for _, row in df.iterrows():
         label = row['Label']
-        length = float(row['Length (ft)']) * 12 + gap
-        width = float(row['Width (ft)']) * 12 + gap
+        length = float(row['Length (ft)']) * 12
+        width = float(row['Width (ft)']) * 12
         qty = int(row['Quantity'])
+        area = (length * width) * qty
+        total_countertop_area += area
         for _ in range(qty):
-            pieces.append((width, length))  # rectpack uses (width, height)
+            # Add kerf to final dimensions
+            pieces.append((width + gap, length + gap))  # rectpack uses (width, height)
             labels.append(label)
 
     # Start packing
@@ -71,8 +75,18 @@ if df is not None:
 
     packer.pack()
 
-    bins = packer.bin_rects()
+    bins = []
+    for abin in packer:
+        bin_rects = abin[2]  # (index, size, rects)
+        bins.append(bin_rects)
+
+    total_slab_area = len(bins) * slab_length_in * slab_width_in
+    waste_area = total_slab_area - total_countertop_area
+
     st.success(f"You will need {len(bins)} slabs")
+    st.info(f"Total countertop area: {total_countertop_area / 144:.2f} sq ft")
+    st.info(f"Total slab area used: {total_slab_area / 144:.2f} sq ft")
+    st.info(f"Waste area: {waste_area / 144:.2f} sq ft")
 
     # Draw PDF
     pdf_bytes = io.BytesIO()
