@@ -69,8 +69,7 @@ if df is not None:
             label_lookup[rect_id] = label
 
     packer = newPacker(rotation=True)
-
-        for w, h, rid in pieces:
+    for w, h, rid in pieces:
         packer.add_rect(w, h, rid)
     packer.add_bin(slab_width_in, slab_length_in, float('inf'))
 
