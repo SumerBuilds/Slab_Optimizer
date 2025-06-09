@@ -8,13 +8,13 @@ import io
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Cutting Layout Optimizer")
 
-# User-defined slab dimensions and cutting gap
+# Step 1: Slab dimensions and gap
 st.subheader("Step 1: Define Slab Dimensions and Cutting Gap")
 slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0, step=1.0)
 slab_width_in = st.number_input("Enter Slab Width (inches)", min_value=10.0, value=64.0, step=1.0)
 gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, max_value=5.0, value=0.5, step=0.1)
 
-# Upload CSV file or enter manually
+# Step 2: Manual or CSV input
 st.subheader("Step 2: Provide Countertop Info")
 tab1, tab2 = st.tabs(["📝 Enter Manually", "📁 Upload CSV File"])
 
@@ -54,7 +54,7 @@ with tab2:
         df = df.rename(columns=lambda x: x.strip())
 
 if df is not None and not df.empty:
-    # Convert ft to inches and replicate parts by quantity
+    # Prepare parts list (converted to inches)
     parts = []
     for _, row in df.iterrows():
         for _ in range(int(row['Quantity'])):
@@ -65,77 +65,59 @@ if df is not None and not df.empty:
             }
             parts.append(part)
 
-    parts.sort(key=lambda x: x['width'] * x['height'], reverse=True)
+    # Sort by max dimension (to improve fit)
+    parts.sort(key=lambda x: max(x['width'], x['height']), reverse=True)
 
+    # Place parts using simple shelf packing with rotation
     slabs = []
     for part in parts:
         placed = False
         for slab in slabs:
-            for rotated in [False, True]:
-                pw = part['width'] if not rotated else part['height']
-                ph = part['height'] if not rotated else part['width']
-                for y in range(0, int(slab_length_in - ph + 1), int(gap) + 1):
-                    for x in range(0, int(slab_width_in - pw + 1), int(gap) + 1):
-                        fits = True
-                        for other in slab['parts']:
-                            ox, oy = other['x'], other['y']
-                            ow, oh = other['width'], other['height']
-                            if not (
-                                x + pw <= ox or x >= ox + ow or
-                                y + ph <= oy or y >= oy + oh
-                            ):
-                                fits = False
-                                break
-                        if fits:
-                            part_to_add = {
-                                'label': part['label'],
-                                'width': pw,
-                                'height': ph,
-                                'x': x,
-                                'y': y
-                            }
-                            slab['parts'].append(part_to_add)
-                            placed = True
-                            break
-                    if placed:
+            for shelf in slab['shelves']:
+                for orientation in [(part['width'], part['height']), (part['height'], part['width'])]:
+                    w, h = orientation
+                    if shelf['x'] + w <= slab_width_in and shelf['y'] + h <= slab_length_in:
+                        part_coords = {**part, 'x': shelf['x'], 'y': shelf['y'], 'width': w, 'height': h}
+                        shelf['parts'].append(part_coords)
+                        shelf['x'] += w + gap
+                        slab['parts'].append(part_coords)
+                        placed = True
                         break
                 if placed:
                     break
-            if placed:
-                break
+            if not placed and slab['shelves'][-1]['y'] + part['height'] + gap <= slab_length_in:
+                shelf = {'x': 0, 'y': slab['shelves'][-1]['y'] + max(p['height'] for p in slab['shelves'][-1]['parts']) + gap, 'parts': []}
+                slab['shelves'].append(shelf)
         if not placed:
-            slabs.append({'parts': []})
-            slabs[-1]['parts'].append({
-                'label': part['label'],
-                'width': part['width'],
-                'height': part['height'],
-                'x': 0,
-                'y': 0
-            })
+            new_slab = {'parts': [], 'shelves': [{'x': 0, 'y': 0, 'parts': []}]}
+            slabs.append(new_slab)
+            new_slab['shelves'][0]['parts'].append({**part, 'x': 0, 'y': 0})
+            new_slab['parts'].append({**part, 'x': 0, 'y': 0})
+            new_slab['shelves'][0]['x'] += part['width'] + gap
 
     st.success(f"You will need {len(slabs)} slabs")
 
-    # Draw all slabs to PDF
+    # Create PDF with slab diagrams
     pdf_buffer = io.BytesIO()
     with PdfPages(pdf_buffer) as pdf:
-        for i, slab in enumerate(slabs):
-            if i % 6 == 0:
-                fig, axs = plt.subplots(3, 2, figsize=(36, 24))
-                axs = axs.flatten()
-            ax = axs[i % 6]
-            ax.set_xlim(0, slab_length_in)
-            ax.set_ylim(0, slab_width_in)
-            ax.set_title(f"Slab {i + 1}")
-            ax.set_aspect('equal')
-            for part in slab['parts']:
-                rect = plt.Rectangle((part['x'], part['y']), part['width'], part['height'], facecolor='skyblue', edgecolor='blue', linewidth=1.5)
-                ax.add_patch(rect)
-                ax.text(part['x'] + part['width']/2, part['y'] + part['height']/2, part['label'], fontsize=10, ha='center', va='center')
-            ax.invert_yaxis()
-            if (i % 6 == 5) or (i == len(slabs) - 1):
-                plt.tight_layout()
-                pdf.savefig(fig)
-                plt.close()
+        for i in range(0, len(slabs), 6):
+            fig, axs = plt.subplots(3, 2, figsize=(36, 24))
+            axs = axs.flatten()
+            for j in range(min(6, len(slabs) - i)):
+                slab = slabs[i + j]
+                ax = axs[j]
+                ax.set_xlim(0, slab_length_in)
+                ax.set_ylim(0, slab_width_in)
+                ax.set_title(f"Slab {i + j + 1}")
+                ax.set_aspect('equal')
+                for part in slab['parts']:
+                    rect = plt.Rectangle((part['y'], part['x']), part['height'], part['width'], facecolor='skyblue', edgecolor='blue', linewidth=1.5)
+                    ax.add_patch(rect)
+                    ax.text(part['y'] + part['height']/2, part['x'] + part['width']/2, part['label'], fontsize=10, ha='center', va='center')
+                ax.invert_yaxis()
+            plt.tight_layout()
+            pdf.savefig(fig)
+            plt.close()
 
     st.download_button(
         label="📄 Download Slab Layout PDF",
