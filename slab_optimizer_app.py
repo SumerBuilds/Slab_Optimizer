@@ -52,26 +52,31 @@ bath 2,2,1.75,8
         df = pd.read_csv(uploaded)
 
 if df is not None:
+    grouped = df.groupby("Label")
     pieces = []
     label_lookup = {}
     total_countertop_area = 0
+    rect_id = 0
 
-    for index, row in df.iterrows():
-        label = row['Label']
-        length = float(row['Length (ft)']) * 12
-        width = float(row['Width (ft)']) * 12
+    for label, rows in grouped:
+        row = rows.iloc[0]
+        l_in = float(row['Length (ft)']) * 12
+        w_in = float(row['Width (ft)']) * 12
         qty = int(row['Quantity'])
-        area = (length * width) * qty
-        total_countertop_area += area
+        total_countertop_area += l_in * w_in * qty
         for _ in range(qty):
-            rect_id = len(pieces)
-            pieces.append((width, length, rect_id))
+            pieces.append((w_in, l_in, rect_id, label))
             label_lookup[rect_id] = label
+            rect_id += 1
 
     packer = newPacker(rotation=True)
-    for w, h, rid in pieces:
-        packer.add_rect(w, h, rid)
-    packer.add_bin(slab_length_in, slab_width_in, float('inf'))
+    for w, h, rid, label in pieces:
+        packer.add_rect(w + gap, h + gap, rid)
+
+    # Add a reasonable number of bins (not too few or too many)
+    # Let’s say ~20 initially and allow rectpack to handle re-use
+    for _ in range(20):
+        packer.add_bin(slab_length_in, slab_width_in)
 
     packer.pack()
 
