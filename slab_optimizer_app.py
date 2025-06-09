@@ -47,17 +47,7 @@ bath 2,2,1.75,8
         file_name="sample_countertops.csv",
         mime="text/csv"
     )
-    st.markdown("""### Example Format:
-    ```csv
-    Label,Length (ft),Width (ft),Quantity
-    island top,7,3.5,8
-    island side,3,3.5,16
-    kitchen 1,2.75,2,8
-    kitchen 2,5.5,2,8
-    bath 1,9.1,1.75,8
-    bath 2,2,1.75,8
-    ```
-    """)
+    
     if uploaded:
         df = pd.read_csv(uploaded)
 
@@ -79,10 +69,10 @@ if df is not None:
             label_lookup[rect_id] = label
 
     packer = newPacker(rotation=True)
-    for w, h, rid in pieces:
-        packer.add_rect(w + gap, h + gap, rid)
-    for _ in range(len(pieces)):
-        packer.add_bin(slab_width_in, slab_length_in)
+
+        for w, h, rid in pieces:
+        packer.add_rect(w, h, rid)
+    packer.add_bin(slab_width_in, slab_length_in, float('inf'))
 
     packer.pack()
 
