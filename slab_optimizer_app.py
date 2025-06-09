@@ -6,7 +6,7 @@ import io
 from rectpack import newPacker
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
-st.title("🪚 Quartz Slab Cutting Layout Optimizer (Powered by MaxRects)")
+st.title("🪚 Quartz Slab Cutting Layout Optimizer")
 
 # Input slab dimensions and kerf
 slab_length_in = st.number_input("Enter Slab Length (inches)", min_value=10.0, value=127.0)
@@ -66,19 +66,20 @@ if df is not None:
     packer = newPacker(rotation=True)
     for i, (w, h, _) in enumerate(pieces):
         packer.add_rect(w, h, i)
-    for _ in range(len(pieces)):
+    bin_count = max(1, len(pieces) // 5)
+    for _ in range(bin_count):
         packer.add_bin(slab_width_in, slab_length_in)
 
     packer.pack()
 
-    # Reconstruct bins
-    bins = []
-    packed_parts = packer.rect_list()
-    max_bin_index = max(r[4] for r in packed_parts) + 1
-    for _ in range(max_bin_index):
-        bins.append([])
-    for x, y, w, h, bin_index, rid in packed_parts:
-        bins[bin_index].append((x, y, w, h, rid))
+    # Reconstruct bins safely
+    bins_dict = {}
+    for rect in packer.rect_list():
+        x, y, w, h, rid, bid = rect
+        if bid not in bins_dict:
+            bins_dict[bid] = []
+        bins_dict[bid].append((x, y, w, h, rid))
+    bins = [bins_dict[k] for k in sorted(bins_dict.keys())]
 
     total_slab_area = len(bins) * slab_length_in * slab_width_in
     waste_area = total_slab_area - total_countertop_area
