@@ -60,25 +60,25 @@ if df is not None:
         area = (length * width) * qty
         total_countertop_area += area
         for _ in range(qty):
-            # Add kerf to final dimensions
-            pieces.append((width + gap, length + gap))  # rectpack uses (width, height)
-            labels.append(label)
+            pieces.append((width + gap, length + gap, label))  # width, height, label
 
     # Start packing
     packer = newPacker(rotation=True)
-    rect_data = [(w, h, i) for i, (w, h) in enumerate(pieces)]
-
-    for r in rect_data:
-        packer.add_rect(*r)
+    for i, (w, h, _) in enumerate(pieces):
+        packer.add_rect(w, h, i)
     for _ in range(len(pieces)):
         packer.add_bin(slab_width_in, slab_length_in)
 
     packer.pack()
 
+    # Reconstruct bins
     bins = []
-    for abin in packer:
-        bin_rects = abin[2]  # (index, size, rects)
-        bins.append(bin_rects)
+    packed_parts = packer.rect_list()
+    max_bin_index = max(r[4] for r in packed_parts) + 1
+    for _ in range(max_bin_index):
+        bins.append([])
+    for x, y, w, h, bin_index, rid in packed_parts:
+        bins[bin_index].append((x, y, w, h, rid))
 
     total_slab_area = len(bins) * slab_length_in * slab_width_in
     waste_area = total_slab_area - total_countertop_area
@@ -91,17 +91,17 @@ if df is not None:
     # Draw PDF
     pdf_bytes = io.BytesIO()
     with PdfPages(pdf_bytes) as pdf:
-        for idx, b in enumerate(bins):
+        for idx, slab_parts in enumerate(bins):
             fig, ax = plt.subplots(figsize=(36, 24))
             ax.set_xlim(0, slab_length_in)
             ax.set_ylim(0, slab_width_in)
             ax.set_aspect('equal')
             ax.set_title(f"Slab {idx + 1}")
-            for x, y, w, h, rid in b:
-                label = labels[rid]
-                rect = plt.Rectangle((y, x), h, w, facecolor='skyblue', edgecolor='blue')
+            for x, y, w, h, rid in slab_parts:
+                label = pieces[rid][2]  # Retrieve label from pieces
+                rect = plt.Rectangle((x, y), w, h, facecolor='skyblue', edgecolor='blue')
                 ax.add_patch(rect)
-                ax.text(y + h/2, x + w/2, label, ha='center', va='center', fontsize=10)
+                ax.text(x + w/2, y + h/2, label, ha='center', va='center', fontsize=10)
             ax.invert_yaxis()
             pdf.savefig(fig)
             plt.close()
