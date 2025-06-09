@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import io
-from rectpack import newPacker, PackingMode, MaxRectsBssf
+from rectpack import newPacker
 
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Cutting Layout Optimizer")
@@ -78,11 +78,11 @@ if df is not None:
             pieces.append((width, length, rect_id))
             label_lookup[rect_id] = label
 
-    # Packing setup with MaxRects and smarter mode
-    packer = newPacker(mode=PackingMode.Offline, bin_algo=MaxRectsBssf, rotation=True)
-    for w, h, i in pieces:
-        packer.add_rect(w + gap, h + gap, i)
-    packer.add_bin(slab_width_in, slab_length_in, float("inf"))  # dynamically allocate bins
+    packer = newPacker(rotation=True)
+    for w, h, rid in pieces:
+        packer.add_rect(w + gap, h + gap, rid)
+    for _ in range(len(pieces)):
+        packer.add_bin(slab_width_in, slab_length_in)
 
     packer.pack()
 
@@ -102,7 +102,6 @@ if df is not None:
     st.info(f"Total slab area used: {total_slab_area / 144:.2f} sq ft")
     st.info(f"Waste area: {waste_area / 144:.2f} sq ft")
 
-    # Draw PDF
     pdf_bytes = io.BytesIO()
     with PdfPages(pdf_bytes) as pdf:
         for idx, slab_parts in enumerate(bins):
