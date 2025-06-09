@@ -5,14 +5,14 @@ from matplotlib.backends.backend_pdf import PdfPages
 import math
 import io
 
-# Constants for slab size (in inches)
-SLAB_WIDTH = 64
-SLAB_LENGTH = 127
-
 st.set_page_config(page_title="Quartz Slab Optimizer", layout="wide")
 st.title("🪚 Quartz Slab Layout Optimizer")
 
 uploaded_file = st.file_uploader("Upload CSV file with part data", type=["csv"])
+
+# User-defined inputs
+slab_length_in = st.number_input("Slab Length (inches)", min_value=10.0, value=127.0, step=1.0)
+slab_width_in = st.number_input("Slab Width (inches)", min_value=10.0, value=64.0, step=1.0)
 gap = st.number_input("Cutting gap between parts (in inches)", min_value=0.0, max_value=5.0, value=0.5, step=0.1)
 
 if uploaded_file:
@@ -38,8 +38,8 @@ if uploaded_file:
     for part in parts:
         placed = False
         for slab in slabs:
-            for y in range(0, int(SLAB_LENGTH - part['height'] + 1), int(gap) + 1):
-                for x in range(0, int(SLAB_WIDTH - part['width'] + 1), int(gap) + 1):
+            for y in range(0, int(slab_length_in - part['height'] + 1), int(gap) + 1):
+                for x in range(0, int(slab_width_in - part['width'] + 1), int(gap) + 1):
                     fits = True
                     for other in slab['parts']:
                         if not (
@@ -71,8 +71,8 @@ if uploaded_file:
                 fig, axs = plt.subplots(3, 2, figsize=(36, 24))
                 axs = axs.flatten()
             ax = axs[i % 6]
-            ax.set_xlim(0, SLAB_WIDTH)
-            ax.set_ylim(0, SLAB_LENGTH)
+            ax.set_xlim(0, slab_width_in)
+            ax.set_ylim(0, slab_length_in)
             ax.set_title(f"Slab {i + 1}")
             ax.set_aspect('equal')
             for part in slab['parts']:
