@@ -69,14 +69,12 @@ if df is not None:
             label_lookup[rect_id] = label
             rect_id += 1
 
-    packer = newPacker(rotation=True)
+    from rectpack import MaxRectsBssf
+packer = newPacker(mode=0, bin_algo=MaxRectsBssf, rotation=True)
     for w, h, rid, label in pieces:
-        packer.add_rect(w + gap, h + gap, rid)
+        packer.add_rect(w, h, rid)
 
-    # Add a reasonable number of bins (not too few or too many)
-    # Let’s say ~20 initially and allow rectpack to handle re-use
-    for _ in range(20):
-        packer.add_bin(slab_length_in, slab_width_in)
+    packer.add_bin(slab_length_in, slab_width_in, float('inf'))
 
     packer.pack()
 
