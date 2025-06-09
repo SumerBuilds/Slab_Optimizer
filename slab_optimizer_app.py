@@ -69,7 +69,7 @@ if df is not None:
             label_lookup[rect_id] = label
             rect_id += 1
 
-    , file_name="slab_layout_optimized.pdf", mime="application/pdf")
+    
 
 # Custom geometry-based slab packing
     MIN_GAP = gap  # inches (user-defined)
