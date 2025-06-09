@@ -16,11 +16,26 @@ gap = st.number_input("Enter Blade Cutting Gap (in inches)", min_value=0.0, max_
 
 # Upload CSV file or enter manually
 st.subheader("Step 2: Provide Countertop Info")
-tab1, tab2 = st.tabs(["📁 Upload CSV File", "📝 Enter Manually"])
+tab1, tab2 = st.tabs(["📝 Enter Manually", "📁 Upload CSV File"])
 
 df = None
 
 with tab1:
+    manual_data = []
+    with st.form("manual_input_form"):
+        for i in range(8):
+            col1, col2, col3, col4 = st.columns(4)
+            label = col1.text_input(f"Label {i+1}", key=f"label_{i}")
+            length = col2.number_input(f"Length (ft) {i+1}", min_value=0.0, step=0.1, key=f"len_{i}")
+            width = col3.number_input(f"Width (ft) {i+1}", min_value=0.0, step=0.1, key=f"wid_{i}")
+            quantity = col4.number_input(f"Qty {i+1}", min_value=0, step=1, key=f"qty_{i}")
+            if label and length > 0 and width > 0 and quantity > 0:
+                manual_data.append({"Label": label, "Length (ft)": length, "Width (ft)": width, "Quantity": quantity})
+        submitted = st.form_submit_button("Submit Manual Entries")
+        if submitted:
+            df = pd.DataFrame(manual_data)
+
+with tab2:
     uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
     # Sample input format
@@ -40,21 +55,6 @@ with tab1:
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         df = df.rename(columns=lambda x: x.strip())
-
-with tab2:
-    manual_data = []
-    with st.form("manual_input_form"):
-        for i in range(8):
-            col1, col2, col3, col4 = st.columns(4)
-            label = col1.text_input(f"Label {i+1}", key=f"label_{i}")
-            length = col2.number_input(f"Length (ft) {i+1}", min_value=0.0, step=0.1, key=f"len_{i}")
-            width = col3.number_input(f"Width (ft) {i+1}", min_value=0.0, step=0.1, key=f"wid_{i}")
-            quantity = col4.number_input(f"Qty {i+1}", min_value=0, step=1, key=f"qty_{i}")
-            if label and length > 0 and width > 0 and quantity > 0:
-                manual_data.append({"Label": label, "Length (ft)": length, "Width (ft)": width, "Quantity": quantity})
-        submitted = st.form_submit_button("Submit Manual Entries")
-        if submitted:
-            df = pd.DataFrame(manual_data)
 
 if df is not None and not df.empty:
     # Convert ft to inches and replicate parts by quantity
