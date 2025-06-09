@@ -33,6 +33,20 @@ with tab1:
 
 with tab2:
     uploaded = st.file_uploader("Upload CSV", type=["csv"])
+    sample_csv = """Label,Length (ft),Width (ft),Quantity
+island top,7,3.5,8
+island side,3,3.5,16
+kitchen 1,2.75,2,8
+kitchen 2,5.5,2,8
+bath 1,9.1,1.75,8
+bath 2,2,1.75,8
+"""
+    st.download_button(
+        label="📥 Download Sample CSV",
+        data=sample_csv,
+        file_name="sample_countertops.csv",
+        mime="text/csv"
+    )
     st.markdown("""### Example Format:
     ```csv
     Label,Length (ft),Width (ft),Quantity
