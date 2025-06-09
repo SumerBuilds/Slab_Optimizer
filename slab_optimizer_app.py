@@ -113,17 +113,17 @@ def pack_slabs_with_gap(pieces, slab_size):
             slabs.append([(0, 0, w, h, rid)])
     return slabs
 
-    bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in))
+        bins = pack_slabs_with_gap(pieces, (slab_length_in, slab_width_in))
 
     bins_dict = {}
-        for slab_index, slab_parts in enumerate(bins):
-        for part in slab_parts:
-            x, y, w, h, rid = part
-            if slab_index not in bins_dict:
-                bins_dict[slab_index] = []
-            bins_dict[slab_index].append((x, y, w, h, rid))
+            for slab_index, slab_parts in enumerate(bins):
+                for part in slab_parts:
+                        x, y, w, h, rid = part
+                        if slab_index not in bins_dict:
+                                bins_dict[slab_index] = []
+                            bins_dict[slab_index].append((x, y, w, h, rid))
         
-                bins = [bins_dict[k] for k in sorted(bins_dict.keys())]
+                    bins = [bins_dict[k] for k in sorted(bins_dict.keys())]
 
     total_slab_area = len(bins) * slab_length_in * slab_width_in
     waste_area = total_slab_area - total_countertop_area
