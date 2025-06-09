@@ -37,8 +37,6 @@ with tab1:
 
 with tab2:
     uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
-
-    # Sample input format
     st.markdown("""
     ##### 📌 Sample CSV Format
     ```csv
@@ -51,81 +49,94 @@ with tab2:
     bath 2,2,1.75,8
     ```
     """)
-
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         df = df.rename(columns=lambda x: x.strip())
 
 if df is not None and not df.empty:
+    # Convert ft to inches and replicate parts by quantity
     parts = []
     for _, row in df.iterrows():
         for _ in range(int(row['Quantity'])):
-            length_in = float(row['Length (ft)']) * 12
-            width_in = float(row['Width (ft)']) * 12
             parts.append({
                 'label': row['Label'],
-                'width': width_in,
-                'height': length_in
+                'width': float(row['Width (ft)']) * 12,
+                'height': float(row['Length (ft)']) * 12
             })
 
-    # Sort parts by perimeter (descending)
-    parts.sort(key=lambda x: 2 * (x['width'] + x['height']), reverse=True)
+    parts.sort(key=lambda p: 2 * (p['width'] + p['height']), reverse=True)
 
     def fits(part, rect):
-        # Try placing with and without rotation
-        if part['width'] + gap <= rect['width'] and part['height'] + gap <= rect['height']:
-            return part['width'], part['height']
-        elif part['height'] + gap <= rect['width'] and part['width'] + gap <= rect['height']:
-            return part['height'], part['width']
+        for rotated in [False, True]:
+            pw, ph = (part['width'], part['height']) if not rotated else (part['height'], part['width'])
+            if pw + gap <= rect['width'] and ph + gap <= rect['height']:
+                return pw, ph
         return None
 
     def pack_parts(parts, slab_width, slab_height):
         slabs = []
+
+        def split_rect(free_rect, part_width, part_height):
+            new_rects = []
+            right = {
+                'x': free_rect['x'] + part_width + gap,
+                'y': free_rect['y'],
+                'width': free_rect['width'] - part_width - gap,
+                'height': part_height
+            }
+            top = {
+                'x': free_rect['x'],
+                'y': free_rect['y'] + part_height + gap,
+                'width': free_rect['width'],
+                'height': free_rect['height'] - part_height - gap
+            }
+            for rect in [right, top]:
+                if rect['width'] > 1 and rect['height'] > 1:
+                    new_rects.append(rect)
+            return new_rects
+
         for part in parts:
             placed = False
             for slab in slabs:
+                best_fit = None
                 for i, free in enumerate(slab['free_rects']):
                     fit = fits(part, free)
                     if fit:
                         pw, ph = fit
-                        px, py = free['x'], free['y']
-                        slab['parts'].append({**part, 'x': px, 'y': py, 'width': pw, 'height': ph})
-
-                        # Create new rects
-                        new_rects = [
-                            {'x': px + pw + gap, 'y': py, 'width': free['width'] - pw - gap, 'height': ph},
-                            {'x': px, 'y': py + ph + gap, 'width': free['width'], 'height': free['height'] - ph - gap},
-                        ]
-                        slab['free_rects'].pop(i)
-                        for rect in new_rects:
-                            if rect['width'] > 0 and rect['height'] > 0:
-                                slab['free_rects'].append(rect)
-                        placed = True
-                        break
-                if placed:
+                        leftover = free['width'] * free['height'] - pw * ph
+                        if best_fit is None or leftover < best_fit['leftover']:
+                            best_fit = {
+                                'index': i,
+                                'fit': fit,
+                                'free': free,
+                                'leftover': leftover
+                            }
+                if best_fit:
+                    i = best_fit['index']
+                    free = best_fit['free']
+                    pw, ph = best_fit['fit']
+                    px, py = free['x'], free['y']
+                    slab['parts'].append({**part, 'x': px, 'y': py, 'width': pw, 'height': ph})
+                    new_rects = split_rect(free, pw, ph)
+                    slab['free_rects'].pop(i)
+                    slab['free_rects'].extend(new_rects)
+                    placed = True
                     break
             if not placed:
-                new_slab = {
-                    'parts': [],
-                    'free_rects': [{'x': 0, 'y': 0, 'width': slab_width, 'height': slab_height}]
-                }
-                fit = fits(part, new_slab['free_rects'][0])
+                fit = fits(part, {'width': slab_width, 'height': slab_height})
                 if fit:
                     pw, ph = fit
-                    px, py = 0, 0
-                    new_slab['parts'].append({**part, 'x': px, 'y': py, 'width': pw, 'height': ph})
-                    new_slab['free_rects'] = [
-                        {'x': px + pw + gap, 'y': py, 'width': slab_width - pw - gap, 'height': ph},
-                        {'x': px, 'y': py + ph + gap, 'width': slab_width, 'height': slab_height - ph - gap},
-                    ]
-                slabs.append(new_slab)
+                    new_slab = {
+                        'parts': [{**part, 'x': 0, 'y': 0, 'width': pw, 'height': ph}],
+                        'free_rects': split_rect({'x': 0, 'y': 0, 'width': slab_width, 'height': slab_height}, pw, ph)
+                    }
+                    slabs.append(new_slab)
         return slabs
 
-    slabs = pack_parts(parts, slab_length_in, slab_width_in)
-
+    slabs = pack_parts(parts, slab_width_in, slab_length_in)
     st.success(f"You will need {len(slabs)} slabs")
 
-    # Draw slabs to PDF
+    # Draw all slabs to PDF
     pdf_buffer = io.BytesIO()
     with PdfPages(pdf_buffer) as pdf:
         for i, slab in enumerate(slabs):
