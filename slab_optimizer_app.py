@@ -70,7 +70,7 @@ if df is not None:
             rect_id += 1
 
     from rectpack import MaxRectsBssf
-packer = newPacker(mode=0, bin_algo=MaxRectsBssf, rotation=True)
+    packer = newPacker(mode=0, bin_algo=MaxRectsBssf, rotation=True)
     for w, h, rid, label in pieces:
         packer.add_rect(w, h, rid)
 
